@@ -6,6 +6,7 @@ import fr.klemek.betterlists.BetterArrayList;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -56,11 +57,9 @@ class MainWindow extends JFrame {
         this.setExtendedState(JFrame.MAXIMIZED_BOTH);
         this.setUndecorated(true);
 
-        this.setSize(800, 600);
+        this.setResizable(true);
 
         this.setLocationRelativeTo(null);
-
-        this.setResizable(false);
 
         this.getContentPane().setLayout(new BorderLayout(0, 0));
         this.getContentPane().setBackground(Color.BLACK);
@@ -78,6 +77,9 @@ class MainWindow extends JFrame {
         this.addMouseListener(listener);
 
         this.setVisible(true);
+
+        this.winWidth = this.getContentPane().getWidth();
+        this.winHeight = this.getContentPane().getHeight();
     }
 
     private void postInit() {
@@ -85,12 +87,16 @@ class MainWindow extends JFrame {
         this.showMessage("Loading images...");
         this.allImages = Utils.loadImages();
         this.showMessage("Loaded " + this.allImages.size() + " images...");
+
         if (this.allImages.isEmpty()) {
             System.exit(1);
             return;
         }
+
+        this.allImages = BetterArrayList.fromList(this.allImages).orderByDescending(i -> i.lastModified);
+        this.showMessage("Sorted " + this.allImages.size() + " images...");
+
         this.applySelection();
-        this.showMessage("Scaled " + this.images.size() + " images...");
         this.refreshImage();
         this.finishedLoading = true;
         this.showMessage(null);
@@ -134,17 +140,9 @@ class MainWindow extends JFrame {
 
     private void applySelection() {
         this.images = BetterArrayList.fromList(this.allImages).where(i -> this.selected.contains(i.getScore()));
-        this.scaleImages();
-        if(this.shuffle)
+        if (this.shuffle)
             Utils.shuffle(this.images);
         this.index = 0;
-    }
-
-    private void scaleImages() {
-        if (this.images == null)
-            return;
-        for (Image img : this.images)
-            img.scale(this.winWidth, this.winHeight);
     }
 
     private void showMessage(String message) {
@@ -156,7 +154,7 @@ class MainWindow extends JFrame {
         if (this.autoHideMessage != null && this.autoHideMessage.isAlive())
             this.autoHideMessage.interrupt();
         if (message != null) {
-            if(message.length() > 2)
+            if (message.length() > 2)
                 System.out.println(message);
             this.autoHideMessage = new Thread(this::autoHideMessage);
             this.autoHideMessage.start();
@@ -219,14 +217,14 @@ class MainWindow extends JFrame {
                 this.shuffle = !this.shuffle;
                 this.applySelection();
                 this.refreshImage();
-                if(this.shuffle)
+                if (this.shuffle)
                     this.showMessage("Shuffled images");
                 else
                     this.showMessage("Images by date");
                 break;
             case KeyEvent.VK_RIGHT_PARENTHESIS:
                 this.showScore = !this.showScore;
-                if(this.showScore)
+                if (this.showScore)
                     this.refreshImage();
                 break;
             case KeyEvent.VK_PAGE_UP:
@@ -234,16 +232,16 @@ class MainWindow extends JFrame {
                 if (!this.images.isEmpty()) {
                     Image img = this.images.get(this.index);
                     String msg = img.setScore(img.getScore() + (keycode == KeyEvent.VK_PAGE_UP ? 1 : -1));
-                    if(msg != null){
+                    if (msg != null) {
                         this.showMessage(msg);
-                    }else{
+                    } else {
                         if (!this.selected.contains(img.getScore())) {
                             this.images.remove(this.index);
-                            if(this.index == this.images.size())
+                            if (this.index == this.images.size())
                                 this.index = 0;
                             this.refreshImage();
                         }
-                        this.showMessage("New score : "+img.getScore());
+                        this.showMessage("New score : " + img.getScore());
                     }
                 }
                 break;
@@ -256,12 +254,12 @@ class MainWindow extends JFrame {
             default:
                 int numValue = Utils.keyCodeToNum(keycode);
                 if (keycode == KeyEvent.VK_EQUALS || (numValue >= Utils.getInt("minLevel") && numValue <= Utils.getInt("maxLevel"))) {
-                    if(keycode == KeyEvent.VK_EQUALS){
+                    if (keycode == KeyEvent.VK_EQUALS) {
                         this.selected.clear();
                         for (int i = Utils.getInt("minLevel"); i <= Utils.getInt("maxLevel"); i++) {
                             this.selected.add(i);
                         }
-                    }else if (ctrl) {
+                    } else if (ctrl) {
                         if (!this.selected.contains(numValue))
                             this.selected.add(numValue);
                     } else {
@@ -290,6 +288,12 @@ class MainWindow extends JFrame {
         } else if (mouseButton == MouseEvent.BUTTON3) {
             this.previousImage();
         }
+    }
+
+    void computeResiseEvent() {
+        this.winWidth = this.getContentPane().getWidth();
+        this.winHeight = this.getContentPane().getHeight();
+        this.refreshImage();
     }
 
     private void autoPlay() {
@@ -330,10 +334,15 @@ class MainWindow extends JFrame {
         if (this.index < 0 || this.images.isEmpty())
             this.imageContainer.setVisible(false);
         else {
+            Image img = this.images.get(this.index);
             this.imageContainer.setVisible(true);
-            this.imageContainer.setIcon(this.images.get(this.index).getScaledImage());
-            if(this.showScore)
-                this.showMessage(""+this.images.get(this.index).getScore());
+            try {
+                this.imageContainer.setIcon(img.getScaledImage(this.winWidth, this.winHeight));
+            } catch (IOException e) {
+                this.imageContainer.setVisible(false);
+            }
+            if (this.showScore)
+                this.showMessage("" + img.getScore());
         }
 
         this.revalidate();

@@ -1,31 +1,31 @@
 package fr.klemek.sortedgallery;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 
 public class Image {
 
-    private final String name;
-    private final ImageIcon srcImage;
-    private ImageIcon scaledImage;
-    private int score;
     final long lastModified;
+    private final String path;
+    private final String name;
+    private int score;
 
     Image(String path, int score, long lastModified) {
-        this.srcImage = new ImageIcon(path);
         this.name = new File(path).getName();
+        this.path = path;
         this.score = score;
         this.lastModified = lastModified;
     }
 
-    void scale(int winWidth, int winHeight) {
-        if (this.scaledImage == null)
-            this.scaledImage = Utils.scaleImage(winWidth, winHeight, this.srcImage);
-    }
-
-    ImageIcon getScaledImage() {
-        return this.scaledImage;
+    ImageIcon getScaledImage(int winWidth, int winHeight) throws IOException {
+        if(this.path.endsWith(".gif"))
+            return new ImageIcon(this.path);
+        else
+            return new ImageIcon( Utils.scaleImage(ImageIO.read(new File(this.path)), winWidth, winHeight));
     }
 
     int getScore() {
@@ -33,12 +33,12 @@ public class Image {
     }
 
     String setScore(int score) {
-        if(score < Utils.getInt("minLevel"))
+        if (score < Utils.getInt("minLevel"))
             return "Already minimum score";
-        if(score > Utils.getInt("maxLevel"))
+        if (score > Utils.getInt("maxLevel"))
             return "Already maximum score";
-        if(!Utils.moveImage(this.score, score, this.name))
-            return "Cannot move image "+this.score+ '/' +this.name;
+        if (!Utils.moveImage(this.score, score, this.name))
+            return "Cannot move image " + this.score + '/' + this.name;
         this.score = score;
         return null;
     }

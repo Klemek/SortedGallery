@@ -5,6 +5,7 @@ import fr.klemek.betterlists.BetterList;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -94,7 +95,7 @@ final class Utils {
             }
 
         }
-        return BetterArrayList.fromList(output).orderByDescending(i -> i.lastModified);
+        return output;
     }
 
     static boolean moveImage(int oldScore, int newScore, String name){
@@ -113,10 +114,9 @@ final class Utils {
         }
     }
 
-    static ImageIcon scaleImage(int winWidth, int winHeight, ImageIcon src) {
-        if (src.getDescription().endsWith(".gif"))
-            return src;
-        float imgRatio = src.getIconWidth() / (float) src.getIconHeight();
+    static BufferedImage scaleImage(BufferedImage img, int winWidth, int winHeight) {
+
+        float imgRatio = img.getWidth() / (float) img.getHeight();
         int newWidth;
         int newHeight;
         if (imgRatio < winWidth / (float) winHeight) {
@@ -126,10 +126,15 @@ final class Utils {
             newWidth = winWidth;
             newHeight = (int) (winWidth / imgRatio);
         }
-        return new ImageIcon(src.getImage().getScaledInstance(
-                newWidth,
-                newHeight,
-                java.awt.Image.SCALE_SMOOTH));
+
+        java.awt.Image tmp = img.getScaledInstance(newWidth, newHeight,  java.awt.Image.SCALE_SMOOTH);
+        BufferedImage dimg = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+
+        Graphics2D g2d = dimg.createGraphics();
+        g2d.drawImage(tmp, 0, 0, null);
+        g2d.dispose();
+
+        return dimg;
     }
 
     private static String getExtension(File file) {
