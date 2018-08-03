@@ -328,7 +328,7 @@ class MainWindow extends JFrame {
     }
 
     private void refreshImage() {
-        if (this.images == null)
+        if (this.images == null || this.winWidth == 0)
             return;
 
         if (this.index < 0 || this.images.isEmpty())
