@@ -98,7 +98,7 @@ final class Utils {
         return output;
     }
 
-    static boolean moveImage(int oldScore, int newScore, String name){
+    static String moveImage(int oldScore, int newScore, String name){
         File oldScoreFolder = new File(Utils.getString("rootFolder"), oldScore+"");
         File newScoreFolder = new File(Utils.getString("rootFolder"), newScore+"");
 
@@ -107,10 +107,10 @@ final class Utils {
 
         try {
             Files.move(srcImage.toPath(), dstImage.toPath());
-            return true;
+            return dstImage.getAbsolutePath();
         } catch (IOException e) {
             e.printStackTrace();
-            return false;
+            return null;
         }
     }
 
