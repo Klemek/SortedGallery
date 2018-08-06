@@ -112,7 +112,7 @@ class MainWindow extends JFrame {
         this.showMessage("Sorted " + this.allImages.size() + " images...");
 
         this.applySelection();
-        this.refreshCache(true);
+        this.refreshCache(false);
         this.refreshImage();
         this.finishedLoading = true;
         this.showMessage(null);
@@ -281,7 +281,7 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_BEGIN:
             case KeyEvent.VK_END:
                 this.index = 0;
-                this.refreshCache(false);
+                new Thread(() -> this.refreshCache(false)).start();
                 this.refreshImage();
                 this.showMessage("Moved to first image");
                 this.restartAutoplaying();
@@ -391,8 +391,11 @@ class MainWindow extends JFrame {
     }
 
     private void refreshCache(boolean invalidate) {
-        if (invalidate)
+        if (invalidate){
             this.cache.clear();
+            new Thread(() -> this.refreshCache(false)).start();
+            return;
+        }
         //add images
         int size = this.images.size();
         List<Integer> valid = new ArrayList<>(this.cacheOffset * 2 + 1);
