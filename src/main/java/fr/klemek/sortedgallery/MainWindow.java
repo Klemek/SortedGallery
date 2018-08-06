@@ -11,7 +11,13 @@ import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.swing.*;
@@ -22,6 +28,7 @@ class MainWindow extends JFrame {
     private final transient List<Integer> selected;
     private transient List<Image> allImages;
     private transient List<Image> images;
+    private transient ConcurrentMap<Integer, ImageIcon> cache;
     private transient Thread autoHideMessage;
     private transient Thread autoPlay;
 
@@ -35,17 +42,23 @@ class MainWindow extends JFrame {
     private int index;
     private long autoPlayDelay;
 
+    private int cacheOffset;
     private boolean finishedLoading;
     private boolean showScore;
     private boolean shuffle;
+    private boolean refreshing;
+
+    private ImageIcon loadingImage;
 
     MainWindow() {
+
         this.autoPlayDelay = Utils.getInt("defaultDelay");
         this.finishedLoading = false;
         this.selected = new ArrayList<>();
         this.selected.add(Utils.getInt("defaultLevel"));
         this.showScore = Utils.getBoolean("defaultShowScore");
         this.shuffle = Utils.getBoolean("defaultShuffle");
+        this.cacheOffset = Utils.getInt("cacheSize") / 2;
 
         this.initWindow();
         new Thread(this::postInit).start();
@@ -65,12 +78,14 @@ class MainWindow extends JFrame {
         this.getContentPane().setBackground(Color.BLACK);
 
         URL imageUrl = MainWindow.class.getClassLoader().getResource("loading.gif");
-        this.imageContainer = imageUrl == null ? new JLabel() : new JLabel(new ImageIcon(imageUrl));
+        this.loadingImage = new ImageIcon(imageUrl);
+        this.imageContainer = new JLabel(loadingImage);
         this.imageContainer.setBounds(0, 0, this.winWidth, this.winHeight);
 
         this.message = new JLabel("Test message");
         this.messageBox = new JPanel();
         this.messageBox.add(this.message);
+        this.cache = new ConcurrentHashMap<>();
 
         EventListener listener = new EventListener(this);
         this.addKeyListener(listener);
@@ -97,6 +112,7 @@ class MainWindow extends JFrame {
         this.showMessage("Sorted " + this.allImages.size() + " images...");
 
         this.applySelection();
+        this.refreshCache(true);
         this.refreshImage();
         this.finishedLoading = true;
         this.showMessage(null);
@@ -146,6 +162,10 @@ class MainWindow extends JFrame {
     }
 
     private void showMessage(String message) {
+        this.showMessage(message, true);
+    }
+
+    private void showMessage(String message, boolean log) {
         this.messageBox.setVisible(message != null);
         this.message.setText(message);
         this.revalidate();
@@ -154,7 +174,7 @@ class MainWindow extends JFrame {
         if (this.autoHideMessage != null && this.autoHideMessage.isAlive())
             this.autoHideMessage.interrupt();
         if (message != null) {
-            if (message.length() > 2)
+            if (log)
                 System.out.println(message);
             this.autoHideMessage = new Thread(this::autoHideMessage);
             this.autoHideMessage.start();
@@ -191,32 +211,41 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_ADD:
                 this.autoPlayDelay *= 2;
                 this.showMessage("Delay : " + MainWindow.df.format(this.autoPlayDelay / 1000f) + " seconds");
+                this.restartAutoplaying();
                 break;
             case KeyEvent.VK_SUBTRACT:
                 this.autoPlayDelay /= 2;
                 this.showMessage("Delay : " + MainWindow.df.format(this.autoPlayDelay / 1000f) + " seconds");
+                this.restartAutoplaying();
                 break;
             case KeyEvent.VK_LEFT:
-                this.previousImage();
+                if (!this.refreshing) {
+                    this.refreshing = true;
+                    new Thread(() -> {
+                        this.previousImage();
+                        this.restartAutoplaying();
+                    }).start();
+                }
                 break;
             case KeyEvent.VK_SPACE:
-                if (this.autoPlay != null && this.autoPlay.isAlive()) {
-                    this.autoPlay.interrupt();
-                    this.showMessage("Stopped autoplaying");
-                } else {
-                    this.autoPlay = new Thread(this::autoPlay);
-                    this.autoPlay.start();
-                    this.showMessage("Autoplaying");
-                }
+                this.setAutoplaying(true);
                 break;
             case KeyEvent.VK_RIGHT:
             case KeyEvent.VK_ENTER:
-                this.nextImage();
+                if (!this.refreshing) {
+                    this.refreshing = true;
+                    new Thread(() -> {
+                        this.nextImage();
+                        this.restartAutoplaying();
+                    }).start();
+                }
                 break;
             case KeyEvent.VK_BACK_SPACE:
                 this.shuffle = !this.shuffle;
                 this.applySelection();
+                this.refreshCache(true);
                 this.refreshImage();
+                this.restartAutoplaying();
                 if (this.shuffle)
                     this.showMessage("Shuffled images");
                 else
@@ -230,15 +259,19 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_PAGE_UP:
             case KeyEvent.VK_PAGE_DOWN:
                 if (!this.images.isEmpty()) {
-                    Image img = this.images.get(this.index);
+                    int i = this.index;
+                    Image img = this.images.get(i);
+                    if (img.isGif())
+                        this.nextImage();
                     String msg = img.setScore(img.getScore() + (keycode == KeyEvent.VK_PAGE_UP ? 1 : -1));
                     if (msg != null) {
                         this.showMessage(msg);
                     } else {
                         if (!this.selected.contains(img.getScore())) {
-                            this.images.remove(this.index);
+                            this.images.remove(i);
                             if (this.index == this.images.size())
                                 this.index = 0;
+                            this.refreshCache(true);
                             this.refreshImage();
                         }
                         this.showMessage("New score : " + img.getScore());
@@ -248,8 +281,10 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_BEGIN:
             case KeyEvent.VK_END:
                 this.index = 0;
+                this.refreshCache(false);
                 this.refreshImage();
                 this.showMessage("Moved to first image");
+                this.restartAutoplaying();
                 break;
             default:
                 int numValue = Utils.keyCodeToNum(keycode);
@@ -269,7 +304,9 @@ class MainWindow extends JFrame {
 
                     Collections.sort(this.selected);
                     this.applySelection();
+                    this.refreshCache(true);
                     this.refreshImage();
+                    this.restartAutoplaying();
                     this.showMessage(String.format("Score : %s (%d images)",
                             String.join("-",
                                     BetterArrayList.fromList(this.selected)
@@ -277,6 +314,27 @@ class MainWindow extends JFrame {
                             this.images.size()));
                 }
                 break;
+        }
+    }
+
+    void setAutoplaying(boolean showMessage) {
+        if (this.autoPlay != null && this.autoPlay.isAlive()) {
+            this.autoPlay.interrupt();
+            if (showMessage)
+                this.showMessage("Stopped autoplaying");
+            this.autoPlay = null;
+        } else {
+            this.autoPlay = new Thread(this::autoPlay);
+            this.autoPlay.start();
+            if (showMessage)
+                this.showMessage("Autoplaying");
+        }
+    }
+
+    void restartAutoplaying() {
+        if (this.autoPlay != null && this.autoPlay.isAlive()) {
+            this.setAutoplaying(false);
+            this.setAutoplaying(false);
         }
     }
 
@@ -293,7 +351,9 @@ class MainWindow extends JFrame {
     void computeResiseEvent() {
         this.winWidth = this.getContentPane().getWidth();
         this.winHeight = this.getContentPane().getHeight();
+        this.refreshCache(true);
         this.refreshImage();
+
     }
 
     private void autoPlay() {
@@ -311,42 +371,79 @@ class MainWindow extends JFrame {
     private void nextImage() {
         if (this.images == null)
             return;
+        this.refreshing = true;
         this.index++;
         if (this.index == this.images.size())
             this.index = 0;
-
         this.refreshImage();
+        new Thread(() -> this.refreshCache(false)).start();
     }
 
     private void previousImage() {
         if (this.images == null)
             return;
+        this.refreshing = true;
         this.index--;
         if (this.index == -1)
             this.index = this.images.size() - 1;
         this.refreshImage();
+        new Thread(() -> this.refreshCache(false)).start();
+    }
+
+    private void refreshCache(boolean invalidate) {
+        if (invalidate)
+            this.cache.clear();
+        //add images
+        int size = this.images.size();
+        List<Integer> valid = new ArrayList<>(this.cacheOffset * 2 + 1);
+        for (int i = this.index - this.cacheOffset; i <= this.index + this.cacheOffset; i++) {
+            int j = ((i < 0) ? (i + size) : ((i >= size) ? (i - size) : i));
+            valid.add(j);
+            if (!this.cache.containsKey(j)) {
+                try {
+                    this.cache.put(j, this.images.get(j).getScaledImage(this.winWidth, this.winHeight));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        //remove unused images
+        Set<Integer> keys = new HashSet<>(this.cache.keySet()); // clone
+        for (int id : keys)
+            if (!valid.contains(id)) {
+                this.cache.remove(id);
+            }
+
     }
 
     private void refreshImage() {
         if (this.images == null || this.winWidth == 0)
             return;
 
+        this.refreshing = true;
         if (this.index < 0 || this.images.isEmpty())
             this.imageContainer.setVisible(false);
         else {
-            Image img = this.images.get(this.index);
-            this.imageContainer.setVisible(true);
-            try {
-                this.imageContainer.setIcon(img.getScaledImage(this.winWidth, this.winHeight));
-            } catch (IOException e) {
-                this.imageContainer.setVisible(false);
+            if (this.cache.containsKey(this.index)) {
+                this.imageContainer.setVisible(true);
+                this.imageContainer.setIcon(this.cache.get(this.index));
+            } else {
+                this.imageContainer.setIcon(this.loadingImage);
+                new Thread(() -> {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(500);
+                    } catch (InterruptedException ignored) {
+                    }
+                    this.refreshImage();
+                }).start();
             }
             if (this.showScore)
-                this.showMessage("" + img.getScore());
+                this.showMessage(this.images.get(this.index).getScore() + " (" + (this.index + 1) + '/' + this.images.size() + ')', false);
         }
 
         this.revalidate();
         this.repaint();
+        this.refreshing = false;
     }
 
 

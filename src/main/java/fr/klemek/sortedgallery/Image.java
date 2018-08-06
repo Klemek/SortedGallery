@@ -20,8 +20,12 @@ public class Image {
         this.lastModified = lastModified;
     }
 
+    boolean isGif(){
+        return this.path.endsWith(".gif");
+    }
+
     ImageIcon getScaledImage(int winWidth, int winHeight) throws IOException {
-        return this.path.endsWith(".gif") ?
+        return this.isGif() ?
                 new ImageIcon(this.path) :
                 new ImageIcon(Utils.scaleImage(ImageIO.read(new File(this.path)), winWidth, winHeight));
     }
