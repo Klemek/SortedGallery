@@ -11,10 +11,8 @@ import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -31,6 +29,7 @@ class MainWindow extends JFrame {
     private transient ConcurrentMap<Integer, ImageIcon> cache;
     private transient Thread autoHideMessage;
     private transient Thread autoPlay;
+    private transient Thread refreshCache;
 
     private JLabel message;
     private JPanel messageBox;
@@ -261,7 +260,7 @@ class MainWindow extends JFrame {
                 if (!this.images.isEmpty()) {
                     int i = this.index;
                     Image img = this.images.get(i);
-                    if (img.isGif())
+                    if (img.isGif()) //not enough
                         this.nextImage();
                     String msg = img.setScore(img.getScore() + (keycode == KeyEvent.VK_PAGE_UP ? 1 : -1));
                     if (msg != null) {
@@ -281,7 +280,7 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_BEGIN:
             case KeyEvent.VK_END:
                 this.index = 0;
-                new Thread(() -> this.refreshCache(false)).start();
+                this.startRefreshCache();
                 this.refreshImage();
                 this.showMessage("Moved to first image");
                 this.restartAutoplaying();
@@ -376,7 +375,7 @@ class MainWindow extends JFrame {
         if (this.index == this.images.size())
             this.index = 0;
         this.refreshImage();
-        new Thread(() -> this.refreshCache(false)).start();
+        this.startRefreshCache();
     }
 
     private void previousImage() {
@@ -387,13 +386,20 @@ class MainWindow extends JFrame {
         if (this.index == -1)
             this.index = this.images.size() - 1;
         this.refreshImage();
-        new Thread(() -> this.refreshCache(false)).start();
+        this.startRefreshCache();
+    }
+
+    private void startRefreshCache(){
+        if(this.refreshCache != null && this.refreshCache.isAlive())
+            this.refreshCache.interrupt();
+        this.refreshCache = new Thread(() -> this.refreshCache(false));
+        this.refreshCache.start();
     }
 
     private void refreshCache(boolean invalidate) {
         if (invalidate){
             this.cache.clear();
-            new Thread(() -> this.refreshCache(false)).start();
+            this.startRefreshCache();
             return;
         }
         //add images
