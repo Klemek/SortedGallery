@@ -70,6 +70,7 @@ class MainWindow extends JFrame {
         this.setUndecorated(true);
 
         this.setResizable(true);
+        this.setTitle("SortedGallery");
 
         this.setLocationRelativeTo(null);
 
