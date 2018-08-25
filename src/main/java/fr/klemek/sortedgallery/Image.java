@@ -20,6 +20,10 @@ public class Image {
         this.lastModified = lastModified;
     }
 
+    String getFileName(){
+        return name;
+    }
+
     boolean isGif(){
         return this.path.endsWith(".gif");
     }

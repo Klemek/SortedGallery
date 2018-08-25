@@ -6,7 +6,7 @@
 
     <groupId>fr.klemek</groupId>
     <artifactId>sorted-gallery</artifactId>
-    <version>1.0-dev</version>
+    <version>1.0</version>
 
     <repositories>
         <repository>

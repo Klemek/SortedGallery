@@ -1,7 +1,6 @@
 package fr.klemek.sortedgallery;
 
 import fr.klemek.betterlists.BetterArrayList;
-import fr.klemek.betterlists.BetterList;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -10,13 +9,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
-
-import javax.swing.*;
 
 final class Utils {
     private static final List<String> typeFilter = Arrays.asList("jpg", "png", "bmp", "gif");
@@ -40,7 +36,7 @@ final class Utils {
         return Utils.config.getProperty(key, null);
     }
 
-    static boolean getBoolean(String key){
+    static boolean getBoolean(String key) {
         return Boolean.parseBoolean(Utils.getString(key));
     }
 
@@ -62,32 +58,21 @@ final class Utils {
 
     static void initFolders() {
         File rootFolder = new File(Utils.getString("rootFolder"));
-        File defaultFolder = new File(rootFolder, Utils.getString("defaultLevel"));
         for (int i = Utils.getInt("minLevel"); i <= Utils.getInt("maxLevel"); i++) {
             File folder = new File(rootFolder, "" + i);
             if (!folder.exists())
                 folder.mkdirs();
         }
-        File[] files = rootFolder.listFiles();
-        if (files != null)
-            for (File file : files)
-                if (file.isFile() && Utils.typeFilter.contains(Utils.getExtension(file))) {
-                    try {
-                        Files.move(file.toPath(), new File(defaultFolder, file.getName()).toPath());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
     }
 
     static List<Image> loadImages() {
-        List<Image> output = new ArrayList<>();
+        BetterArrayList<Image> output = new BetterArrayList<>();
 
         File rootFolder = new File(Utils.getString("rootFolder"));
         for (int i = Utils.getInt("minLevel"); i <= Utils.getInt("maxLevel"); i++) {
             File folder = new File(rootFolder, "" + i);
             File[] files = folder.listFiles();
-            if (files != null){
+            if (files != null) {
                 for (File file : files)
                     if (file.isFile() && Utils.typeFilter.contains(Utils.getExtension(file))) {
                         output.add(new Image(file.getAbsolutePath(), i, file.lastModified()));
@@ -95,12 +80,27 @@ final class Utils {
             }
 
         }
+
+        File defaultFolder = new File(rootFolder, Utils.getString("defaultLevel"));
+        File[] files = rootFolder.listFiles();
+        if (files != null)
+            for (File file : files)
+                if (file.isFile() && Utils.typeFilter.contains(Utils.getExtension(file))
+                        && !output.any(img -> img.getFileName().equals(file.getName()))) {
+                    try {
+                        Files.move(file.toPath(), new File(defaultFolder, file.getName()).toPath());
+                        output.add(new Image(file.getAbsolutePath(), Utils.getInt("defaultLevel"), file.lastModified()));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
         return output;
     }
 
-    static String moveImage(int oldScore, int newScore, String name){
-        File oldScoreFolder = new File(Utils.getString("rootFolder"), oldScore+"");
-        File newScoreFolder = new File(Utils.getString("rootFolder"), newScore+"");
+    static String moveImage(int oldScore, int newScore, String name) {
+        File oldScoreFolder = new File(Utils.getString("rootFolder"), oldScore + "");
+        File newScoreFolder = new File(Utils.getString("rootFolder"), newScore + "");
 
         File srcImage = new File(oldScoreFolder, name);
         File dstImage = new File(newScoreFolder, name);
@@ -127,7 +127,7 @@ final class Utils {
             newHeight = (int) (winWidth / imgRatio);
         }
 
-        java.awt.Image tmp = img.getScaledInstance(newWidth, newHeight,  java.awt.Image.SCALE_SMOOTH);
+        java.awt.Image tmp = img.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
         BufferedImage dimg = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
 
         Graphics2D g2d = dimg.createGraphics();
