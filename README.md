@@ -36,6 +36,7 @@ defaultDelay=2000
 defaultShuffle=false
 defaultShowScore=true
 cacheSize=10
+fileThreshold=2097152
 ```
 
 * **rootFolder** - relative path to root folder
@@ -46,3 +47,4 @@ cacheSize=10
 * **defaultShuffle** - images shuffled a start
 * **defaultShowScore** - show image score at start
 * **cacheSize** - image cache size
+* **fileThreshold** - display warnings if images are to big

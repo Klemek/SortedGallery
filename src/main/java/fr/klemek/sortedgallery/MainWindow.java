@@ -2,6 +2,7 @@ package fr.klemek.sortedgallery;
 
 
 import fr.klemek.betterlists.BetterArrayList;
+import fr.klemek.logger.Logger;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -13,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -24,24 +24,20 @@ class MainWindow extends JFrame {
 
     private static final DecimalFormat df = new DecimalFormat("#.####");
     private final transient List<Integer> selected;
+    private final int cacheOffset;
     private transient List<Image> allImages;
     private transient List<Image> images;
     private transient ConcurrentMap<Integer, ImageIcon> cache;
     private transient Thread autoHideMessage;
     private transient Thread autoPlay;
     private transient Thread refreshCache;
-
     private JLabel message;
     private JPanel messageBox;
     private JLabel imageContainer;
-
     private int winWidth;
     private int winHeight;
-
     private int index;
     private long autoPlayDelay;
-
-    private int cacheOffset;
     private boolean finishedLoading;
     private boolean showScore;
     private boolean shuffle;
@@ -78,8 +74,9 @@ class MainWindow extends JFrame {
         this.getContentPane().setBackground(Color.BLACK);
 
         URL imageUrl = MainWindow.class.getClassLoader().getResource("loading.gif");
+        assert imageUrl != null;
         this.loadingImage = new ImageIcon(imageUrl);
-        this.imageContainer = new JLabel(loadingImage);
+        this.imageContainer = new JLabel(this.loadingImage);
         this.imageContainer.setBounds(0, 0, this.winWidth, this.winHeight);
 
         this.message = new JLabel("Test message");
@@ -98,6 +95,15 @@ class MainWindow extends JFrame {
     }
 
     private void postInit() {
+        do {
+            this.winWidth = this.getContentPane().getWidth();
+            this.winHeight = this.getContentPane().getHeight();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Logger.log(e);
+            }
+        } while (this.winWidth == 0);
         this.loadWindowPanel();
         this.showMessage("Loading images...");
         this.allImages = Utils.loadImages();
@@ -175,7 +181,7 @@ class MainWindow extends JFrame {
             this.autoHideMessage.interrupt();
         if (message != null) {
             if (log)
-                System.out.println(message);
+                Logger.log(message);
             this.autoHideMessage = new Thread(this::autoHideMessage);
             this.autoHideMessage.start();
         }
@@ -317,7 +323,7 @@ class MainWindow extends JFrame {
         }
     }
 
-    void setAutoplaying(boolean showMessage) {
+    private void setAutoplaying(boolean showMessage) {
         if (this.autoPlay != null && this.autoPlay.isAlive()) {
             this.autoPlay.interrupt();
             if (showMessage)
@@ -331,7 +337,7 @@ class MainWindow extends JFrame {
         }
     }
 
-    void restartAutoplaying() {
+    private void restartAutoplaying() {
         if (this.autoPlay != null && this.autoPlay.isAlive()) {
             this.setAutoplaying(false);
             this.setAutoplaying(false);
@@ -390,15 +396,15 @@ class MainWindow extends JFrame {
         this.startRefreshCache();
     }
 
-    private void startRefreshCache(){
-        if(this.refreshCache != null && this.refreshCache.isAlive())
+    private void startRefreshCache() {
+        if (this.refreshCache != null && this.refreshCache.isAlive())
             this.refreshCache.interrupt();
         this.refreshCache = new Thread(() -> this.refreshCache(false));
         this.refreshCache.start();
     }
 
     private void refreshCache(boolean invalidate) {
-        if (invalidate){
+        if (invalidate) {
             this.cache.clear();
             this.startRefreshCache();
             return;
@@ -413,14 +419,15 @@ class MainWindow extends JFrame {
                 try {
                     this.cache.put(j, this.images.get(j).getScaledImage(this.winWidth, this.winHeight));
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    Logger.log(e);
                 }
             }
         }
         //remove unused images
-        Set<Integer> keys = new HashSet<>(this.cache.keySet()); // clone
-        for (int id : keys)
+        for (int id : new HashSet<>(this.cache.keySet())) //iterate over clone
             if (!valid.contains(id)) {
+                this.cache.get(id).setImage(null);
+                this.cache.put(id, null);
                 this.cache.remove(id);
             }
 

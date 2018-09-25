@@ -1,6 +1,7 @@
 package fr.klemek.sortedgallery;
 
 import fr.klemek.betterlists.BetterArrayList;
+import fr.klemek.logger.Logger;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -16,11 +17,27 @@ import java.util.Random;
 
 final class Utils {
     private static final List<String> typeFilter = Arrays.asList("jpg", "png", "bmp", "gif");
-
+    private static final long DEFAULT_SIZE_THRESHOLD = 2097152L; //2MB
     private static Properties config;
 
     private Utils() {
 
+    }
+
+    private static String getNiceFileSize(long size) {
+        if (size < 1024)
+            return size + " B";
+        size /= 1024;
+        if (size < 1024)
+            return size + " KB";
+        size /= 1024;
+        if (size < 1024)
+            return size + " MB";
+        size /= 1024;
+        if (size < 1024)
+            return size + " GB";
+        size /= 1024;
+        return size + " TB";
     }
 
     static void loadProperties(String path) {
@@ -28,11 +45,11 @@ final class Utils {
         try (FileInputStream file = new FileInputStream(path)) {
             Utils.config.load(file);
         } catch (IOException e) {
-            e.printStackTrace();
+            Logger.log(e);
         }
     }
 
-    static String getString(String key) {
+    private static String getString(String key) {
         return Utils.config.getProperty(key, null);
     }
 
@@ -48,9 +65,25 @@ final class Utils {
         return iValue == null ? 0 : iValue.intValue();
     }
 
-    static Integer tryParseInt(String value) {
+    private static long getLong(String key) {
+        String value = Utils.getString(key);
+        if (value == null)
+            return 0;
+        Long lValue = Utils.tryParseLong(value);
+        return lValue == null ? 0 : lValue.intValue();
+    }
+
+    private static Integer tryParseInt(String value) {
         try {
             return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Long tryParseLong(String value) {
+        try {
+            return Long.parseLong(value);
         } catch (NumberFormatException e) {
             return null;
         }
@@ -66,22 +99,15 @@ final class Utils {
     }
 
     static List<Image> loadImages() {
+        long threshold = getLong("fileThreshold");
+        if (threshold == 0)
+            threshold = Utils.DEFAULT_SIZE_THRESHOLD;
+
         BetterArrayList<Image> output = new BetterArrayList<>();
 
         File rootFolder = new File(Utils.getString("rootFolder"));
-        for (int i = Utils.getInt("minLevel"); i <= Utils.getInt("maxLevel"); i++) {
-            File folder = new File(rootFolder, "" + i);
-            File[] files = folder.listFiles();
-            if (files != null) {
-                for (File file : files)
-                    if (file.isFile() && Utils.typeFilter.contains(Utils.getExtension(file))) {
-                        output.add(new Image(file.getAbsolutePath(), i, file.lastModified()));
-                    }
-            }
-
-        }
-
         File defaultFolder = new File(rootFolder, Utils.getString("defaultLevel"));
+
         File[] files = rootFolder.listFiles();
         if (files != null)
             for (File file : files)
@@ -89,11 +115,28 @@ final class Utils {
                         && !output.any(img -> img.getFileName().equals(file.getName()))) {
                     try {
                         Files.move(file.toPath(), new File(defaultFolder, file.getName()).toPath());
-                        output.add(new Image(file.getAbsolutePath(), Utils.getInt("defaultLevel"), file.lastModified()));
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Logger.log(e);
                     }
                 }
+
+
+        for (int i = Utils.getInt("minLevel"); i <= Utils.getInt("maxLevel"); i++) {
+            File folder = new File(rootFolder, "" + i);
+            files = folder.listFiles();
+            if (files != null) {
+                for (File file : files)
+                    if (file.isFile() && Utils.typeFilter.contains(Utils.getExtension(file))) {
+                        output.add(new Image(file.getAbsolutePath(), i, file.lastModified()));
+                        if (file.length() > threshold) {
+                            Logger.log("Image {0} is large : {1}", file.getPath(), Utils.getNiceFileSize(file.length()));
+                        }
+                    }
+            }
+
+        }
+
+
 
         return output;
     }
@@ -109,7 +152,7 @@ final class Utils {
             Files.move(srcImage.toPath(), dstImage.toPath());
             return dstImage.getAbsolutePath();
         } catch (IOException e) {
-            e.printStackTrace();
+            Logger.log(e);
             return null;
         }
     }
