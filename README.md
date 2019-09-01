@@ -22,6 +22,8 @@ All images in the root folder will be sorted and put in the correct score folder
 * [Begin/End] - Go to first image
 * [number] - Show only image with score (number)
 * [ctrl+number] - Add all images with score (number)
+* [numpad 1-9] - zoom
+* [numpad 0] reset zoom
 
 ## config.properties
 

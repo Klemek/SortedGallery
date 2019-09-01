@@ -4,10 +4,10 @@ package fr.klemek.sortedgallery;
 import fr.klemek.betterlists.BetterArrayList;
 import fr.klemek.logger.Logger;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.io.IOException;
 import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -18,8 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
-import javax.swing.*;
-
 class MainWindow extends JFrame {
 
     private static final DecimalFormat df = new DecimalFormat("#.####");
@@ -27,13 +25,13 @@ class MainWindow extends JFrame {
     private final int cacheOffset;
     private transient List<Image> allImages;
     private transient List<Image> images;
-    private transient ConcurrentMap<Integer, ImageIcon> cache;
+    private transient ConcurrentMap<Integer, Image> cache;
     private transient Thread autoHideMessage;
     private transient Thread autoPlay;
     private transient Thread refreshCache;
     private JLabel message;
     private JPanel messageBox;
-    private JLabel imageContainer;
+    private ImageContainer imageContainer;
     private int winWidth;
     private int winHeight;
     private int index;
@@ -44,6 +42,9 @@ class MainWindow extends JFrame {
     private boolean refreshing;
 
     private ImageIcon loadingImage;
+
+    private Rectangle zoom;
+    private Rectangle defaultZoom;
 
     MainWindow() {
 
@@ -76,7 +77,7 @@ class MainWindow extends JFrame {
         URL imageUrl = MainWindow.class.getClassLoader().getResource("loading.gif");
         assert imageUrl != null;
         this.loadingImage = new ImageIcon(imageUrl);
-        this.imageContainer = new JLabel(this.loadingImage);
+        this.imageContainer = new ImageContainer(this.loadingImage);
         this.imageContainer.setBounds(0, 0, this.winWidth, this.winHeight);
 
         this.message = new JLabel("Test message");
@@ -119,7 +120,7 @@ class MainWindow extends JFrame {
 
         this.applySelection();
         this.refreshCache(false);
-        this.refreshImage();
+        this.refreshImage(true);
         this.finishedLoading = true;
         this.showMessage(null);
     }
@@ -140,6 +141,7 @@ class MainWindow extends JFrame {
         JPanel imageLayer = new JPanel(new BorderLayout(0, 0));
         imageLayer.setOpaque(false);
         imageLayer.setBounds(0, 0, this.winWidth, this.winHeight);
+        this.defaultZoom = new Rectangle(0, 0, this.winWidth, this.winHeight);
         imageLayer.add(this.imageContainer, BorderLayout.CENTER);
         layers.add(imageLayer, (Integer) 1);
 
@@ -250,7 +252,7 @@ class MainWindow extends JFrame {
                 this.shuffle = !this.shuffle;
                 this.applySelection();
                 this.refreshCache(true);
-                this.refreshImage();
+                this.refreshImage(true);
                 this.restartAutoplaying();
                 if (this.shuffle)
                     this.showMessage("Shuffled images");
@@ -260,7 +262,7 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_RIGHT_PARENTHESIS:
                 this.showScore = !this.showScore;
                 if (this.showScore)
-                    this.refreshImage();
+                    this.refreshImage(true);
                 break;
             case KeyEvent.VK_PAGE_UP:
             case KeyEvent.VK_PAGE_DOWN:
@@ -278,7 +280,7 @@ class MainWindow extends JFrame {
                             if (this.index == this.images.size())
                                 this.index = 0;
                             this.refreshCache(true);
-                            this.refreshImage();
+                            this.refreshImage(true);
                         }
                         this.showMessage("New score : " + img.getScore());
                     }
@@ -288,9 +290,47 @@ class MainWindow extends JFrame {
             case KeyEvent.VK_END:
                 this.index = 0;
                 this.startRefreshCache();
-                this.refreshImage();
                 this.showMessage("Moved to first image");
                 this.restartAutoplaying();
+                break;
+            case KeyEvent.VK_NUMPAD1:
+                this.imageContainer.zoom(0f, 0.2f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD2:
+                this.imageContainer.zoom(0.1f, 0.2f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD3:
+                this.imageContainer.zoom(0.2f, 0.2f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD4:
+                this.imageContainer.zoom(0f, 0.1f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD5:
+                this.imageContainer.zoom(0.1f, 0.1f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD6:
+                this.imageContainer.zoom(0.2f, 0.1f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD7:
+                this.imageContainer.zoom(0f, 0f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD8:
+                this.imageContainer.zoom(0.1f, 0f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD9:
+                this.imageContainer.zoom(0.2f, 0f, 0.8f, 0.8f);
+                this.refreshImage(false);
+                break;
+            case KeyEvent.VK_NUMPAD0:
+                this.refreshImage(true);
                 break;
             default:
                 int numValue = Utils.keyCodeToNum(keycode);
@@ -311,7 +351,7 @@ class MainWindow extends JFrame {
                     Collections.sort(this.selected);
                     this.applySelection();
                     this.refreshCache(true);
-                    this.refreshImage();
+                    this.refreshImage(true);
                     this.restartAutoplaying();
                     this.showMessage(String.format("Score : %s (%d images)",
                             String.join("-",
@@ -357,8 +397,9 @@ class MainWindow extends JFrame {
     void computeResiseEvent() {
         this.winWidth = this.getContentPane().getWidth();
         this.winHeight = this.getContentPane().getHeight();
+        this.defaultZoom = new Rectangle(0, 0, this.winWidth, this.winHeight);
         this.refreshCache(true);
-        this.refreshImage();
+        this.refreshImage(true);
 
     }
 
@@ -381,7 +422,7 @@ class MainWindow extends JFrame {
         this.index++;
         if (this.index == this.images.size())
             this.index = 0;
-        this.refreshImage();
+        this.refreshImage(true);
         this.startRefreshCache();
     }
 
@@ -392,7 +433,7 @@ class MainWindow extends JFrame {
         this.index--;
         if (this.index == -1)
             this.index = this.images.size() - 1;
-        this.refreshImage();
+        this.refreshImage(true);
         this.startRefreshCache();
     }
 
@@ -416,26 +457,24 @@ class MainWindow extends JFrame {
             int j = ((i < 0) ? (i + size) : ((i >= size) ? (i - size) : i));
             valid.add(j);
             if (!this.cache.containsKey(j)) {
-                try {
-                    this.cache.put(j, this.images.get(j).getScaledImage(this.winWidth, this.winHeight));
-                } catch (IOException e) {
-                    Logger.log(e);
-                }
+                this.cache.put(j, this.images.get(j));
             }
         }
         //remove unused images
         for (int id : new HashSet<>(this.cache.keySet())) //iterate over clone
             if (!valid.contains(id)) {
-                this.cache.get(id).setImage(null);
-                this.cache.put(id, null);
+                this.cache.get(id).clean();
                 this.cache.remove(id);
             }
 
     }
 
-    private void refreshImage() {
+    private void refreshImage(boolean resetZoom) {
         if (this.images == null || this.winWidth == 0)
             return;
+
+        if (resetZoom)
+            this.imageContainer.resetZoom();
 
         this.refreshing = true;
         if (this.index < 0 || this.images.isEmpty())
@@ -443,15 +482,15 @@ class MainWindow extends JFrame {
         else {
             if (this.cache.containsKey(this.index)) {
                 this.imageContainer.setVisible(true);
-                this.imageContainer.setIcon(this.cache.get(this.index));
+                this.imageContainer.setImg(this.cache.get(this.index));
             } else {
-                this.imageContainer.setIcon(this.loadingImage);
+                this.imageContainer.setImg(this.loadingImage);
                 new Thread(() -> {
                     try {
                         TimeUnit.MILLISECONDS.sleep(500);
                     } catch (InterruptedException ignored) {
                     }
-                    this.refreshImage();
+                    this.refreshImage(true);
                 }).start();
             }
             if (this.showScore)

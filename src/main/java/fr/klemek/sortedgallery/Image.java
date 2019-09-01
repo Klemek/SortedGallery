@@ -1,10 +1,11 @@
 package fr.klemek.sortedgallery;
 
-import java.io.File;
-import java.io.IOException;
+import fr.klemek.logger.Logger;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import java.io.File;
+import java.io.IOException;
 
 public class Image {
 
@@ -12,6 +13,7 @@ public class Image {
     private String path;
     private final String name;
     private int score;
+    private ImageIcon img;
 
     Image(String path, int score, long lastModified) {
         this.name = new File(path).getName();
@@ -21,17 +23,28 @@ public class Image {
     }
 
     String getFileName(){
-        return name;
+        return this.name;
     }
 
     boolean isGif(){
         return this.path.endsWith(".gif");
     }
 
-    ImageIcon getScaledImage(int winWidth, int winHeight) throws IOException {
-        return this.isGif() ?
-                new ImageIcon(this.path) :
-                new ImageIcon(Utils.scaleImage(ImageIO.read(new File(this.path)), winWidth, winHeight));
+    ImageIcon getImage() {
+        if (this.img == null) {
+            try {
+                this.img = this.isGif() ?
+                        new ImageIcon(this.path) :
+                        new ImageIcon(ImageIO.read(new File(this.path)));
+            } catch (IOException e) {
+                Logger.log(e);
+            }
+        }
+        return this.img;
+    }
+
+    void clean() {
+        this.img = null;
     }
 
     int getScore() {
