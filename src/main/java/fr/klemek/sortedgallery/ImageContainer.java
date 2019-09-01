@@ -57,6 +57,24 @@ public class ImageContainer extends JLabel {
             int h = this.getHeight();
             g2.setColor(Color.BLACK);
             g2.fillRect(0, 0, w, h);
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON));
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_RENDERING,
+                    RenderingHints.VALUE_RENDER_QUALITY));
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_DITHERING,
+                    RenderingHints.VALUE_DITHER_ENABLE));
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_COLOR_RENDERING,
+                    RenderingHints.VALUE_COLOR_RENDER_QUALITY));
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_ALPHA_INTERPOLATION,
+                    RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY));
+            g2.setRenderingHints(new RenderingHints(
+                    RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR));
             ImageIcon img = this.img.getImage();
             if (img != null) {
                 BufferedImage bimg = (BufferedImage) img.getImage();
