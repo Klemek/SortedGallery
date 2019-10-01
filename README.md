@@ -1,3 +1,4 @@
+[![Scc Count Badge](https://sloc.xyz/github/klemek/sortedgallery/?category=code)](https://github.com/boyter/scc/#badges-beta)
 [![Language grade: Java](https://img.shields.io/lgtm/grade/java/g/Klemek/SortedGallery.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Klemek/SortedGallery/context:java)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/Klemek/SortedGallery.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/Klemek/SortedGallery/alerts/)
 
